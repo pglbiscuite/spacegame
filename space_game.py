@@ -32,15 +32,18 @@ class Player(pygame.sprite.Sprite):
     """The Player"""
     def __init__(self):
         pygame.sprite.Sprite.__init__(self)
-        self.image = pygame.transform.scale(player_img, (50, 38))
+        self.image = pygame.transform.scale(player_img, (50, 48))
         self.image.set_colorkey(BLACK)
         self.rect = self.image.get_rect()
+        self.radius = 21
+        # pygame.draw.circle(self.image, RED, self.rect.center, self.radius)            // Circle around the ship
         self.rect.centerx = WIDTH / 2
         self.rect.bottom = HEIGHT - 10
         self.speedx = 0
 
 
     def update(self):
+        """Updating the player"""
         self.speedx = 0
         keystate = pygame.key.get_pressed()
         if keystate[pygame.K_LEFT]:
@@ -55,6 +58,7 @@ class Player(pygame.sprite.Sprite):
 
 
     def shoot(self):
+        """Shooting the bullets."""
         bullet = Bullet(self.rect.centerx, self.rect.top)
         all_sprites.add(bullet)
         bullets.add(bullet)
@@ -66,6 +70,8 @@ class Mob(pygame.sprite.Sprite):
         self.image = meteor_img
         self.image.set_colorkey(BLACK)
         self.rect = self.image.get_rect()
+        self.radius = int(self.rect.width * .85 / 2)
+        # pygame.draw.circle(self.image, RED, self.rect.center, self.radius)        // Circle around the asteroid
         self.rect.x = random.randrange(WIDTH - self.rect.width)
         self.rect.y = random.randrange(-100, -40)
         self.speedy = random.randrange(1, 8)
@@ -101,7 +107,7 @@ class Bullet(pygame.sprite.Sprite):
 background = pygame.image.load(path.join(img_dir, "starfield2.png")).convert()
 background_rect = background.get_rect()
 player_img = pygame.image.load(path.join(img_dir, "playerShip1_orange3.png")).convert()
-meteor_img = pygame.image.load(path.join(img_dir, "meteorBrown_med1.png")).convert()
+meteor_img = pygame.image.load(path.join(img_dir, "meteorBrown_med12.png")).convert()
 laser_img = pygame.image.load(path.join(img_dir, "laserRed162.png")).convert()
 laser_img_rect = background.get_rect()
 
@@ -141,7 +147,7 @@ while running:
         mobs.add(m)
 
     # Check to see if a mob hit the Player
-    hits = pygame.sprite.spritecollide(player, mobs, False)
+    hits = pygame.sprite.spritecollide(player, mobs, False, pygame.sprite.collide_circle)
     if hits:
         running = False
 

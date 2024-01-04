@@ -21,6 +21,7 @@ RED = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLUE = (0, 0, 255)
 YELLOW = (255, 255, 0)
+JADE = (0, 168, 107)
 
 
 # initialize pygame and create window
@@ -31,7 +32,7 @@ pygame.display.set_caption('Space Game')
 clock = pygame.time.Clock()
 
 
-font_name = pygame.font.match_font('arial')
+font_name = pygame.font.match_font('roboto mono bold')
 def draw_text(surf, text, size, x, y):
     """The actual Score on the screen."""
     font = pygame.font.Font(font_name, size)
@@ -51,11 +52,11 @@ def draw_shield_bar(surface, x, y, pct):
     if pct < 0:
         pct = 0
     BAR_LENGHT = 100
-    BAR_HEIGHT = 10
+    BAR_HEIGHT = 17
     fill = (pct / 100) * BAR_LENGHT
     # Determine the color based on shield percentage
     if pct > 55:
-        color = GREEN
+        color = JADE
     elif pct > 30:
         color = YELLOW
     else:
@@ -67,6 +68,15 @@ def draw_shield_bar(surface, x, y, pct):
     pygame.draw.rect(surface, color, fill_rect)
     pygame.draw.rect(surface, WHITE, outline_rect, 2)
 
+def draw_lives(surf, x, y, lives, img):
+    """Drawing Player Lives"""
+    for i in range(lives):
+        img_rect = img.get_rect()
+        #img_rect.x = x + 30 * i
+        SPACE_GAP = 13  # pixels between each image
+        img_rect.x = x + ((img_rect.width + SPACE_GAP) * i)
+        img_rect.y = y
+        surf.blit(img, img_rect)
 
 
 class Player(pygame.sprite.Sprite):
@@ -82,16 +92,32 @@ class Player(pygame.sprite.Sprite):
         self.rect.bottom = HEIGHT - 10
         self.speedx = 0
         self.shield = 100
+        self.shoot_delay = 250
+        self.last_shot = pygame.time.get_ticks()
+        self.lives = 3
+        self.hidden = False
+        self.hide_timer = pygame.time.get_ticks()
+
+
+
 
 
     def update(self):
         """Updating the player"""
+        # un hide if hidden
+        if self.hidden and pygame.time.get_ticks() - self.hide_timer > 1000:
+            self.hidden = False
+            self.rect.centerx = WIDTH / 2
+            self.rect.bottom = HEIGHT - 10
+
         self.speedx = 0
         keystate = pygame.key.get_pressed()
         if keystate[pygame.K_LEFT]:
             self.speedx = -8
         if keystate[pygame.K_RIGHT]:
             self.speedx = 8
+        if keystate[pygame.K_SPACE]:
+            self.shoot()
         self.rect.x += self.speedx
         if self.rect.right > WIDTH:
             self.rect.right = WIDTH
@@ -101,10 +127,20 @@ class Player(pygame.sprite.Sprite):
 
     def shoot(self):
         """Shooting the bullets."""
-        bullet = Bullet(self.rect.centerx, self.rect.top)
-        all_sprites.add(bullet)
-        bullets.add(bullet)
-        shoot_sound.play()
+        now = pygame.time.get_ticks()
+        if now - self.last_shot > self.shoot_delay:
+            self.last_shot = now
+            bullet = Bullet(self.rect.centerx, self.rect.top)
+            all_sprites.add(bullet)
+            bullets.add(bullet)
+            shoot_sound.play()
+
+
+    def hide(self):
+        # hide the player temporarily
+        self.hidden = True
+        self.hide_timer = pygame.time.get_ticks()
+        self.rect.center = (WIDTH / 2, HEIGHT + 200)
 
 
 
@@ -168,11 +204,39 @@ class Bullet(pygame.sprite.Sprite):
         if self.rect.bottom < 0:
             self.kill()
 
+class Explosion(pygame.sprite.Sprite):
+    """The Explosion Sprite"""
+    def __init__(self, center, size):
+        pygame.sprite.Sprite.__init__(self)
+        self.size = size
+        self.image = explosions_animation[self.size][0]
+        self.rect = self.image.get_rect()
+        self.rect.center = center
+        self.frame = 0
+        self.last_update = pygame.time.get_ticks()
+        self.frame_rate = 10
+
+
+    def update(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_update > self.frame_rate:
+            self.last_update = now
+            self.frame += 1
+            if self.frame == len(explosions_animation[self.size]):
+                self.kill()
+            else:
+                center = self.rect.center
+                self.image = explosions_animation[self.size][self.frame]
+                self.rect = self.image.get_rect()
+                self.rect.center = center
+
 
 # Load all Game Graphics
 background = pygame.image.load(path.join(img_dir, "starfield2.png")).convert()
 background_rect = background.get_rect()
 player_img = pygame.image.load(path.join(img_dir, "playerShip1_orange3.png")).convert()
+player_mini_img = pygame.transform.scale(player_img, (24,18))
+player_mini_img.set_colorkey(BLACK)
 meteor_img = pygame.image.load(path.join(img_dir, "meteorBrown_med12.png")).convert()
 laser_img = pygame.image.load(path.join(img_dir, "laserRed162.png")).convert()
 laser_img_rect = background.get_rect()
@@ -182,15 +246,39 @@ meteor_list = ["meteorBrown_big1.png", "meteorBrown_big2.png", "meteorBrown_med1
 for img in meteor_list:
     meteor_images.append(pygame.image.load(path.join(img_dir, img)).convert())
 
+explosions_animation = {}
+explosions_animation['lg'] = []
+explosions_animation['sm'] = []
+explosions_animation['player'] = []
+for i in range(1, 23):
+    filename = 'expl_02_{:04d}.png'.format(i)
+    img = pygame.image.load(path.join(img_dir, filename)).convert()
+    img.set_colorkey(BLACK)
+    img_lg = pygame.transform.scale(img, (75, 75))
+    explosions_animation['lg'].append(img_lg)
+    img_sm = pygame.transform.scale(img, (32,32))
+    explosions_animation['sm'].append(img_sm)
+
+
+# Making another explosion for the player ship
+for i in range(1, 31):
+    filename2 = 'expl_06_{:04d}.png'.format(i)
+    img = pygame.image.load(path.join(img_dir, filename2)).convert()
+    img.set_colorkey(BLACK)
+    img_lg = pygame.transform.scale(img, (75, 75))
+    explosions_animation['player'].append(img)
+
+
 # Load all Game Sounds
 shoot_sound = pygame.mixer.Sound(path.join(snd_dir, 'pew.wav'))
 shoot_sound.set_volume(0.2)
 expl_sounds = []
-
 for snd in ['expl1.wav', 'expl2.wav']:
     expl_sounds.append(pygame.mixer.Sound(path.join(snd_dir, snd)))
+player_die_sound = pygame.mixer.Sound(path.join(snd_dir, 'fun.wav'))
+player_die_sound.set_volume(0.4)
 for sound in expl_sounds:
-    sound.set_volume(0.4)  # Adjust the volume to your desired level for each sound
+    sound.set_volume(0.3)  # Adjust the volume to your desired level for each sound
 
 pygame.mixer.music.load(path.join(snd_dir, 'monBeats.wav'))
 pygame.mixer.music.set_volume(0.7)
@@ -218,9 +306,9 @@ while running:
         # check for closing the window
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                player.shoot()
+        #elif event.type == pygame.KEYDOWN:         // Not using this method anymore
+        #    if event.key == pygame.K_SPACE:
+        #        player.shoot()
 
     # Update
     all_sprites.update()
@@ -230,22 +318,39 @@ while running:
     for hit in hits:
         score += (50 - hit.radius)
         random.choice(expl_sounds).play()
+        expl = Explosion(hit.rect.center, 'lg')
+        all_sprites.add(expl)
         newmob()
 
     # Check to see if a mob hit the Player
     hits = pygame.sprite.spritecollide(player, mobs, True, pygame.sprite.collide_circle)
     for hit in  hits:
         player.shield -= hit.radius * 2
+        expl = Explosion(hit.rect.center, 'sm')
+        all_sprites.add(expl)
         newmob()
         if player.shield <= 0:
-            running = False
+            player_die_sound.play()
+            death_explosion = Explosion(player.rect.center, 'player')
+            all_sprites.add(death_explosion)
+            player.hide()
+            player.lives -= 1
+            player.shield = 100
+
+   # If the Player Died and the Explosion has Finished
+
+    if player.lives == 0 and not death_explosion.alive():
+       running = False
+
+
 
     # Draw / render
     screen.fill(BLACK)
     screen.blit(background, background_rect)
     all_sprites.draw(screen)
-    draw_text(screen, str(score), 18, WIDTH / 2, 10 )
+    draw_text(screen, str(score), 38, WIDTH / 2, 10 )
     draw_shield_bar(screen, 5, 5, player.shield)
+    draw_lives(screen, WIDTH - 110, 15, player.lives, player_mini_img)
     # *after drawing everything, flip the display
     pygame.display.flip()
 

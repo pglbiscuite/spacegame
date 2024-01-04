@@ -1,10 +1,13 @@
 # Space Game
+# Music from monBeats at https://twitter.com/monBeatsART
+# Art from Kenney.nl
 
 import pygame
 import random
 from os import path
 
 img_dir = path.join(path.dirname(__file__), 'img')
+snd_dir = path.join(path.dirname(__file__), 'snd')
 
 
 WIDTH = 480
@@ -28,6 +31,44 @@ pygame.display.set_caption('Space Game')
 clock = pygame.time.Clock()
 
 
+font_name = pygame.font.match_font('arial')
+def draw_text(surf, text, size, x, y):
+    """The actual Score on the screen."""
+    font = pygame.font.Font(font_name, size)
+    text_surface = font.render(text, True, WHITE)
+    text_rect = text_surface.get_rect()
+    text_rect.midtop = (x, y)
+    surf.blit(text_surface, text_rect)
+
+
+def newmob():
+    m = Mob()
+    all_sprites.add(m)
+    mobs.add(m)
+
+def draw_shield_bar(surface, x, y, pct):
+    """Drawing the shield bar"""
+    if pct < 0:
+        pct = 0
+    BAR_LENGHT = 100
+    BAR_HEIGHT = 10
+    fill = (pct / 100) * BAR_LENGHT
+    # Determine the color based on shield percentage
+    if pct > 55:
+        color = GREEN
+    elif pct > 30:
+        color = YELLOW
+    else:
+        color = RED
+
+    outline_rect = pygame.Rect(x, y, BAR_LENGHT, BAR_HEIGHT)
+    fill_rect = pygame.Rect(x, y, fill, BAR_HEIGHT)
+
+    pygame.draw.rect(surface, color, fill_rect)
+    pygame.draw.rect(surface, WHITE, outline_rect, 2)
+
+
+
 class Player(pygame.sprite.Sprite):
     """The Player"""
     def __init__(self):
@@ -40,6 +81,7 @@ class Player(pygame.sprite.Sprite):
         self.rect.centerx = WIDTH / 2
         self.rect.bottom = HEIGHT - 10
         self.speedx = 0
+        self.shield = 100
 
 
     def update(self):
@@ -62,6 +104,8 @@ class Player(pygame.sprite.Sprite):
         bullet = Bullet(self.rect.centerx, self.rect.top)
         all_sprites.add(bullet)
         bullets.add(bullet)
+        shoot_sound.play()
+
 
 
 class Mob(pygame.sprite.Sprite):
@@ -111,6 +155,7 @@ class Bullet(pygame.sprite.Sprite):
     def __init__(self, x, y):
         pygame.sprite.Sprite.__init__(self)
         self.image = pygame.transform.scale(laser_img, (10, 42))
+        self.radius = 8.5
         self.image.set_colorkey(BLACK)
         self.rect = self.image.get_rect()
         self.rect.bottom = y
@@ -124,7 +169,7 @@ class Bullet(pygame.sprite.Sprite):
             self.kill()
 
 
-# Load all game graphics
+# Load all Game Graphics
 background = pygame.image.load(path.join(img_dir, "starfield2.png")).convert()
 background_rect = background.get_rect()
 player_img = pygame.image.load(path.join(img_dir, "playerShip1_orange3.png")).convert()
@@ -137,16 +182,32 @@ meteor_list = ["meteorBrown_big1.png", "meteorBrown_big2.png", "meteorBrown_med1
 for img in meteor_list:
     meteor_images.append(pygame.image.load(path.join(img_dir, img)).convert())
 
+# Load all Game Sounds
+shoot_sound = pygame.mixer.Sound(path.join(snd_dir, 'pew.wav'))
+shoot_sound.set_volume(0.2)
+expl_sounds = []
+
+for snd in ['expl1.wav', 'expl2.wav']:
+    expl_sounds.append(pygame.mixer.Sound(path.join(snd_dir, snd)))
+for sound in expl_sounds:
+    sound.set_volume(0.4)  # Adjust the volume to your desired level for each sound
+
+pygame.mixer.music.load(path.join(snd_dir, 'monBeats.wav'))
+pygame.mixer.music.set_volume(0.7)
+
+
+
 all_sprites = pygame.sprite.Group()
 mobs = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 player = Player()
 all_sprites.add(player)
 for i in range(8):
-    m = Mob()
-    all_sprites.add(m)
-    mobs.add(m)
+    newmob()
+score = 0
 
+
+pygame.mixer.music.play(loops=-1)
 # Game Loop // Events
 running = True
 while running:
@@ -165,21 +226,26 @@ while running:
     all_sprites.update()
 
     # Check to see if a bullet hit a Mob
-    hits = pygame.sprite.groupcollide(bullets, mobs, True, True)
+    hits = pygame.sprite.groupcollide(mobs, bullets , True, True)
     for hit in hits:
-        m = Mob()
-        all_sprites.add(m)
-        mobs.add(m)
+        score += (50 - hit.radius)
+        random.choice(expl_sounds).play()
+        newmob()
 
     # Check to see if a mob hit the Player
-    hits = pygame.sprite.spritecollide(player, mobs, False, pygame.sprite.collide_circle)
-    if hits:
-        running = False
+    hits = pygame.sprite.spritecollide(player, mobs, True, pygame.sprite.collide_circle)
+    for hit in  hits:
+        player.shield -= hit.radius * 2
+        newmob()
+        if player.shield <= 0:
+            running = False
 
     # Draw / render
     screen.fill(BLACK)
     screen.blit(background, background_rect)
     all_sprites.draw(screen)
+    draw_text(screen, str(score), 18, WIDTH / 2, 10 )
+    draw_shield_bar(screen, 5, 5, player.shield)
     # *after drawing everything, flip the display
     pygame.display.flip()
 
